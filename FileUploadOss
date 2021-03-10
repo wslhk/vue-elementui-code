@@ -1,0 +1,168 @@
+<template>
+    <div style="display: inline-block;">
+        <div style="display: none;">
+            [{{imgPath}},{{filePath}}]
+            [{{imgUrl}},{{fileUrl}}]
+        </div>
+        <el-upload
+                class="avatar-uploader"
+                action="https://jsonplaceholder.typicode.com/posts/"
+                :show-file-list="false"
+                :on-success="handleAvatarSuccess"
+                :http-request="uploadSectionFile"
+                :before-upload="beforeAvatarUpload"
+                :accept="acceptSrc!=''?acceptSrc:null"
+        >
+            <i><el-button type="primary" v-if="btnText" size="mini">{{btnText}}</el-button>
+                <el-button type="primary" v-if="!btnText" size="mini">请选择文件</el-button>
+            </i>
+            <span v-if="imageProcess">[{{imageProcess}}]</span>
+
+        </el-upload>
+    </div>
+</template>
+
+<script>
+    import $ from 'jquery'
+    import Vue from 'vue'
+    import ossService from '../../../service/base/OssService'
+
+    export default {
+        name: 'FileUploadOss',
+        props: ['fieldName', 'filePath', 'fileUrl', 'fileKey', 'usesrc','btnText','accept'],  // key代表文件唯一标记，用于回调
+        data() {
+            return {
+                imgPath: this.filePath,
+                imgUrl: this.fileUrl,
+                imageProcess: '',
+                dir: 'vdog',
+                acceptSrc:''
+            }
+        },
+        methods: {
+            //  数据加载
+            beforeAvatarUpload(file) {
+                if(this.accept){
+                    //验证扩展名
+                    let accepts=this.accept.split(',');
+                    let acceptFlag=false;
+                    for(var i=0;i<accepts.length;i++){
+                        if(file.name.indexOf(accepts[i])!=-1){
+                            acceptFlag=true;
+                            break;
+                        }
+                    }
+                    if(!acceptFlag){
+                        alert('不支持扩展名,文件名：'+file.name+'，支持扩展名:'+accepts)
+                        return false
+                    }
+                }
+
+                return true
+
+            },
+            postImg(sign, form) {
+
+                // alert('postimg' + sign['host'])
+                let that = this
+                $.ajax({
+                    url: sign['host'],
+                    data: form,
+                    processData: false,
+                    contentType: false,
+                    type: 'POST',
+                    xhr: function () {
+                        function onprogress(evt) {
+                            var loaded = evt.loaded
+                            //已经上传大小情况
+                            var tot = evt.total
+                            //附件总大小
+                            var per = Math.floor(100 * loaded / tot)
+                            //已经上传的百分比
+                            console.log(per + '%')
+                            that.imageProcess = per + '%'
+                            //          console.log("width" + per + "%" )
+                        }
+                        var xhr = $.ajaxSettings.xhr()
+                        if (onprogress && xhr.upload) {
+                            xhr.upload.addEventListener('progress', onprogress, false)
+                            return xhr
+                        }
+                    }
+                }).done(function (ret) {
+                    // alert('finish')
+                    var link = sign['host'] + '/' + sign['key']
+                    let newimagePath = sign['key']
+                    // that.ruleForm.coverUrl = link
+                    let newimageUrl = link
+                    // alert(newimagePath)
+                    // console.log(123)
+                    that.$emit('uploadFile', that.fileKey, newimagePath, newimageUrl)
+                    // alert(newimagePath)
+                    that.imgPath = newimagePath
+                    that.imgUrl = newimageUrl
+                    that.$message.info('文件上传完成');
+//                    alert("上传成功！")
+                })
+
+            },
+            uploadSectionFile(param) {
+                this.imgUrl = ''
+                let that = this
+                that.imageProcess = ''
+                ossService.ostObjectPolicy(this, {
+                    'dir': that.dir,
+                    'srcname': param.file.name,
+                    'usesrc': that.usesrc
+                }, function (resp) {
+                    var sign = resp;
+                    var form = new FormData();
+                    var object_name = "" + that.dir + "";
+// 添加签名信息
+                    form.append('OSSAccessKeyId', sign['accessid']);
+                    form.append('policy', sign['policy']);
+                    form.append('Signature', sign['signature']);
+                    form.append('key', sign['key']);
+// 添加文件
+                    form.append('file', param.file)
+                    // alert(1);
+
+                    that.postImg(sign, form)
+                })
+
+            },
+            handleAvatarSuccess(res, file) {
+                this.fileUrl = URL.createObjectURL(file.raw)
+            }
+        },
+        updated() {
+            // console.log(this)
+            console.log('----------updated-0-----------')
+            if (this.imagePath) {
+                this.imgPath = this.imagePath
+            }
+            if (this.filePath) {
+                this.imgPath = this.filePath
+            }
+            if (this.imageUrl) {
+                this.imgUrl = this.imageUrl
+            }
+            console.log('-->' + this.imagePath + ' ' + this.imgPath)
+            // this.imgPath=this.imagePath
+            // this.imgUrl=this.imageUrl
+            console.log('----------updated-1-----------')
+            // alert('oss updated' + this.imgUrl)
+        },
+        mounted() {
+            console.log(this.imagePath + ' ' + this.imgPath)
+            console.log('----------mounted-oss-----------')
+            if(this.accept){
+                this.acceptSrc=this.accept
+            }
+        },
+        destroyed() {
+            // this.editor.destroy();
+        }
+    }
+</script>
+
